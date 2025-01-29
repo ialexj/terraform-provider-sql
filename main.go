@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 	server "github.com/hashicorp/terraform-plugin-go/tfprotov6/tf6server"
 
-	"github.com/paultyng/terraform-provider-sql/internal/provider"
+	"github.com/ialexj/terraform-provider-sql/internal/provider"
 )
 
 // Generate docs for website
@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	providerAddr = "registry.terraform.io/paultyng/sql"
+	providerAddr = "registry.terraform.io/ialexj/sql"
 )
 
 func main() {

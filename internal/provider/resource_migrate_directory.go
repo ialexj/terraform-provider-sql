@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"github.com/paultyng/terraform-provider-sql/internal/migration"
-	"github.com/paultyng/terraform-provider-sql/internal/server"
+	"github.com/ialexj/terraform-provider-sql/internal/migration"
+	"github.com/ialexj/terraform-provider-sql/internal/server"
 )
 
 type resourceMigrateDirectory struct {

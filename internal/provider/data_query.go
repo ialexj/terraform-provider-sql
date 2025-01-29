@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"github.com/paultyng/terraform-provider-sql/internal/server"
+	"github.com/ialexj/terraform-provider-sql/internal/server"
 )
 
 type dataQuery struct {
@@ -93,7 +93,12 @@ func (d *dataQuery) Read(ctx context.Context, config map[string]tftypes.Value) (
 		return nil, nil, err
 	}
 
-	rows, err := d.db.QueryContext(ctx, query)
+	diag, err := d.p.ConnectLazy(ctx)
+	if diag != nil || err != nil {
+		return nil, diag, err
+	}
+
+	rows, err := d.p.DB.QueryContext(ctx, query)
 	if err != nil {
 		return nil, nil, err
 	}

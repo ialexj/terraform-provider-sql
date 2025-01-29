@@ -5,12 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"github.com/paultyng/terraform-provider-sql/internal/server"
+	"github.com/ialexj/terraform-provider-sql/internal/server"
 )
 
 func New(version string) func() tfprotov6.ProviderServer {
@@ -38,6 +37,10 @@ type provider struct {
 	DB *sql.DB `argmapper:",typeOnly"`
 
 	Driver driverName
+
+	Url          tftypes.Value
+	MaxOpenConns int64
+	MaxIdleConns int64
 }
 
 var _ server.Provider = (*provider)(nil)
@@ -89,76 +92,48 @@ func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Valu
 
 	var err error
 
-	var (
-		url          string
-		maxOpenConns *big.Float
-		maxIdleConns *big.Float
-	)
-	if v := config["url"]; v.IsNull() {
-		url = os.Getenv("SQL_URL")
-	} else {
-		err = config["url"].As(&url)
+	p.Url = config["url"]
+	if p.Url.IsKnown() {
+		_, err = p.validateUrl()
 		if err != nil {
-			// TODO: diag with path
-			return nil, fmt.Errorf("ConfigureProvider - unable to read url: %w", err)
+			return nil, fmt.Errorf("ConfigureProvider - invalid url: %w", err)
 		}
 	}
 
-	if url == "" {
-		return []*tfprotov6.Diagnostic{
-			{
-				Severity: tfprotov6.DiagnosticSeverityError,
-				Attribute: tftypes.NewAttributePathWithSteps([]tftypes.AttributePathStep{
-					tftypes.AttributeName("url"),
-				}),
-				Summary: "A `url` is required to connect to your database.",
-			},
-		}, nil
-	}
-
 	if v := config["max_open_conns"]; v.IsNull() {
-		maxOpenConns = big.NewFloat(float64(0))
+		p.MaxOpenConns = 0
 	} else {
-		maxOpenConns = &big.Float{}
-		err = config["max_open_conns"].As(&maxOpenConns)
+		maxOpenConnsBig := &big.Float{}
+		err = v.As(&maxOpenConnsBig)
 		if err != nil {
 			// TODO: diag with path
 			return nil, fmt.Errorf("ConfigureProvider - unable to read max_open_conns: %w", err)
 		}
+
+		maxOpenConns, acc := maxOpenConnsBig.Int64()
+		if acc != big.Exact {
+			return nil, fmt.Errorf("ConfigureProvider - max_open_conns must be an integer")
+		}
+
+		p.MaxOpenConns = maxOpenConns
 	}
 
 	if v := config["max_idle_conns"]; v.IsNull() {
-		maxIdleConns = big.NewFloat(float64(2))
+		p.MaxIdleConns = 2
 	} else {
-		maxIdleConns = &big.Float{}
-		err = v.As(&maxIdleConns)
+		maxIdleConnsBig := &big.Float{}
+		err = v.As(&maxIdleConnsBig)
 		if err != nil {
 			// TODO: diag with path
 			return nil, fmt.Errorf("ConfigureProvider - unable to read max_idle_conns: %w", err)
 		}
-	}
 
-	err = p.connect(url)
-	if err != nil {
-		return nil, fmt.Errorf("ConfigureProvider - unable to open database: %w", err)
-	}
+		maxIdleConns, acc := maxIdleConnsBig.Int64()
+		if acc != big.Exact {
+			return nil, fmt.Errorf("ConfigureProvider - max_idle_conns must be an integer")
+		}
 
-	maxOpen, acc := maxOpenConns.Int64()
-	if acc != big.Exact {
-		return nil, fmt.Errorf("ConfigureProvider - results for max_open_conns is not exact")
-	}
-
-	maxIdle, acc := maxIdleConns.Int64()
-	if acc != big.Exact {
-		return nil, fmt.Errorf("ConfigureProvider - results for max_open_conns is not exact")
-	}
-
-	p.DB.SetMaxOpenConns(int(maxOpen))
-	p.DB.SetMaxIdleConns(int(maxIdle))
-
-	err = p.DB.PingContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("ConfigureProvider - unable to ping database: %w", err)
+		p.MaxIdleConns = maxIdleConns
 	}
 
 	return nil, nil

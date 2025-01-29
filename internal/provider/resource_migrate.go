@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"github.com/paultyng/terraform-provider-sql/internal/migration"
-	"github.com/paultyng/terraform-provider-sql/internal/server"
+	"github.com/ialexj/terraform-provider-sql/internal/migration"
+	"github.com/ialexj/terraform-provider-sql/internal/server"
 )
 
 type resourceMigrate struct {
@@ -19,10 +19,11 @@ type resourceMigrate struct {
 var _ server.Resource = (*resourceMigrate)(nil)
 var _ server.ResourceUpdater = (*resourceMigrate)(nil)
 
-func newResourceMigrate(db dbExecer) (*resourceMigrate, error) {
+func newResourceMigrate(db dbExecer, p *provider) (*resourceMigrate, error) {
 	return &resourceMigrate{
 		resourceMigrateCommon: resourceMigrateCommon{
 			db: db,
+			p:  p,
 		},
 	}, nil
 }

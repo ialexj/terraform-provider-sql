@@ -16,7 +16,9 @@ import (
 	// TODO: sqlite? need to use a pure go driver, i think this one is...
 	// _ "modernc.org/sqlite"
 
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type dbQueryer interface {
@@ -25,6 +27,51 @@ type dbQueryer interface {
 
 type dbExecer interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+}
+
+func (p *provider) ConnectLazy(ctx context.Context) ([]*tfprotov6.Diagnostic, error) {
+	var err error
+	var url string
+
+	if p.DB != nil {
+		tflog.Debug(ctx, "Database connection is already open.")
+		return nil, nil
+	}
+
+	url, err = p.validateUrl()
+	if err != nil {
+		return nil, fmt.Errorf("ConnectLazy - invalid url: %w", err)
+	}
+
+	err = p.connect(url)
+	if err != nil {
+		return nil, fmt.Errorf("ConnectLazy - unable to open database: %w", err)
+	}
+
+	err = p.DB.PingContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("ConnectLazy - unable to ping database: %w", err)
+	}
+
+	tflog.SetField(ctx, "db_driver", p.Driver)
+	tflog.Info(ctx, "Database connection established.")
+
+	return nil, nil
+}
+
+func (p *provider) validateUrl() (string, error) {
+	var url string
+	err := p.Url.As(&url)
+	if err != nil {
+		// TODO: diag with path
+		return "", fmt.Errorf("unable to read url: %w", err)
+	}
+
+	if url == "" {
+		return "", fmt.Errorf("url can't be empty")
+	}
+
+	return url, nil
 }
 
 func (p *provider) connect(dsn string) error {
@@ -57,8 +104,8 @@ func (p *provider) connect(dsn string) error {
 		return fmt.Errorf("unable to open database: %w", err)
 	}
 
-	// force this to zero, but let callers override config
-	p.DB.SetMaxIdleConns(0)
+	p.DB.SetMaxOpenConns(int(p.MaxOpenConns))
+	p.DB.SetMaxIdleConns(int(p.MaxIdleConns))
 
 	return nil
 }

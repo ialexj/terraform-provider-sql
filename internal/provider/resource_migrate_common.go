@@ -30,6 +30,7 @@ func completeMigrationsAttribute() *tfprotov6.SchemaAttribute {
 
 type resourceMigrateCommon struct {
 	db dbExecer
+	p  *provider
 }
 
 func (r *resourceMigrateCommon) Read(ctx context.Context, current map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
@@ -38,12 +39,17 @@ func (r *resourceMigrateCommon) Read(ctx context.Context, current map[string]tft
 }
 
 func (r *resourceMigrateCommon) Create(ctx context.Context, planned map[string]tftypes.Value, config map[string]tftypes.Value, prior map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
+	diag, err := r.p.ConnectLazy(ctx)
+	if diag != nil || err != nil {
+		return nil, diag, err
+	}
+
 	plannedMigrations, err := migration.FromListValue(planned["complete_migrations"])
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = migration.Up(ctx, r.db, plannedMigrations, nil)
+	err = migration.Up(ctx, r.p.DB, plannedMigrations, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -52,6 +58,11 @@ func (r *resourceMigrateCommon) Create(ctx context.Context, planned map[string]t
 }
 
 func (r *resourceMigrateCommon) Update(ctx context.Context, planned map[string]tftypes.Value, config map[string]tftypes.Value, prior map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
+	diag, err := r.p.ConnectLazy(ctx)
+	if diag != nil || err != nil {
+		return nil, diag, err
+	}
+
 	priorCompleteMigrations, err := migration.FromListValue(prior["complete_migrations"])
 	if err != nil {
 		return nil, nil, err
@@ -62,7 +73,7 @@ func (r *resourceMigrateCommon) Update(ctx context.Context, planned map[string]t
 		return nil, nil, err
 	}
 
-	err = migration.Up(ctx, r.db, plannedMigrations, priorCompleteMigrations)
+	err = migration.Up(ctx, r.p.DB, plannedMigrations, priorCompleteMigrations)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -71,12 +82,17 @@ func (r *resourceMigrateCommon) Update(ctx context.Context, planned map[string]t
 }
 
 func (r *resourceMigrateCommon) Destroy(ctx context.Context, prior map[string]tftypes.Value) ([]*tfprotov6.Diagnostic, error) {
+	diag, err := r.p.ConnectLazy(ctx)
+	if diag != nil || err != nil {
+		return diag, err
+	}
+
 	priorCompleteMigrations, err := migration.FromListValue(prior["complete_migrations"])
 	if err != nil {
 		return nil, err
 	}
 
-	err = migration.Down(ctx, r.db, nil, priorCompleteMigrations)
+	err = migration.Down(ctx, r.p.DB, nil, priorCompleteMigrations)
 	if err != nil {
 		return nil, err
 	}

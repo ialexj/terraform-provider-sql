@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     sql = {
-      source = "paultyng/sql"
+      source = "ialexj/sql"
     }
   }
 }

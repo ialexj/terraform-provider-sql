@@ -89,9 +89,9 @@ var testServers = []*testServer{
 		ServerType: "sqlserver",
 		StartContainer: func() (*dockertest.Resource, string, error) {
 			password := "TF-8chars"
-			resource, err := dockerPool.Run("mcr.microsoft.com/mssql/server", "2017-latest", []string{
-				"ACCEPT_EULA=y",
-				"SA_PASSWORD=" + password,
+			resource, err := dockerPool.Run("mcr.microsoft.com/mssql/server", "2022-latest", []string{
+				"ACCEPT_EULA=Y",
+				"MSSQL_SA_PASSWORD=" + password,
 			})
 			if err != nil {
 				return nil, "", err
@@ -156,7 +156,7 @@ func runTestMain(m *testing.M) int {
 		log.Fatalf("could not connect to docker: %s", err)
 	}
 
-	dockerPool.MaxWait = 5 * time.Minute
+	dockerPool.MaxWait = 20 * time.Minute
 
 	for _, driver := range testServers {
 		driver := driver
@@ -205,22 +205,26 @@ func (td *testServer) Start() error {
 			return
 		}
 
-		// set a hard expiry on the container for 10 minutes
-		err := td.resource.Expire(10 * 60)
+		// set a hard expiry on the container for 30 minutes
+		err := td.resource.Expire(30 * 60)
 		if err != nil {
 			log.Printf("unable to set hard expiration: %s", err)
 			// do not exit here, just log the issue
 		}
 
+		ds, err := parseUrl(td.url)
+		if err != nil {
+			log.Printf("cannot parse URL into a dataSource: %s", err)
+		}
+
 		td.resourceOnceErr = dockerPool.Retry(func() error {
-			p := &provider{}
-			err := p.connect(td.url)
+			db, err := sql.Open(string(ds.driver), ds.url)
 			if err != nil {
 				return err
 			}
-			defer p.DB.Close()
+			defer db.Close()
 
-			err = p.DB.Ping()
+			err = db.Ping()
 			if err != nil {
 				return err
 			}
@@ -232,14 +236,14 @@ func (td *testServer) Start() error {
 		}
 
 		if td.OnReady != nil {
-			p := &provider{}
-			td.resourceOnceErr = p.connect(td.url)
+			var db *sql.DB
+			db, td.resourceOnceErr = sql.Open(string(ds.driver), ds.url)
 			if td.resourceOnceErr != nil {
 				return
 			}
-			defer p.DB.Close()
+			defer db.Close()
 
-			td.resourceOnceErr = td.OnReady(p.DB)
+			td.resourceOnceErr = td.OnReady(db)
 			if td.resourceOnceErr != nil {
 				return
 			}

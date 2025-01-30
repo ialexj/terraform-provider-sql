@@ -17,6 +17,7 @@ import (
 	// _ "modernc.org/sqlite"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type dbQueryer interface {
@@ -27,40 +28,126 @@ type dbExecer interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
-func (p *provider) connect(dsn string) error {
+type dbConnector interface {
+	HasUrl() bool
+	GetDataSource() (dataSource, error)
+	GetQueryer(ctx context.Context) (dataSource, dbQueryer, error)
+	GetExecer(ctx context.Context) (dataSource, dbExecer, error)
+}
+
+type dataSource struct {
+	driver driverName
+	url    string
+}
+
+func (p *provider) HasUrl() bool {
+	return p.Url.IsKnown()
+}
+
+func (p *provider) GetDataSource() (dataSource, error) {
+	url, err := p.getCurrentUrlValue()
+	if err != nil {
+		return dataSource{}, fmt.Errorf("GetDriver - invalid url: %w", err)
+	}
+
+	p.DataSource, err = parseUrl(url)
+	return p.DataSource, err
+}
+
+func (p *provider) getCurrentUrlValue() (string, error) {
+	var url string
+	err := p.Url.As(&url)
+	if err != nil {
+		// TODO: diag with path
+		return "", fmt.Errorf("unable to read url: %w", err)
+	}
+
+	if url == "" {
+		return "", fmt.Errorf("url can't be empty")
+	}
+
+	return url, nil
+}
+
+func (p *provider) GetQueryer(ctx context.Context) (dataSource, dbQueryer, error) {
+	return p.connectContext(ctx)
+}
+
+func (p *provider) GetExecer(ctx context.Context) (dataSource, dbExecer, error) {
+	return p.connectContext(ctx)
+}
+
+func (p *provider) connectContext(ctx context.Context) (dataSource, *sql.DB, error) {
 	var err error
 
-	scheme, err := schemeFromURL(dsn)
+	if p.DB != nil {
+		tflog.Debug(ctx, "Database connection is already open.")
+		return p.DataSource, p.DB, nil
+	}
+
+	p.DataSource, err = p.GetDataSource()
 	if err != nil {
-		return err
+		return p.DataSource, nil, err
+	}
+
+	p.DB, err = sql.Open(string(p.DataSource.driver), p.DataSource.url)
+	if err != nil {
+		return p.DataSource, nil, fmt.Errorf("unable to open database: %w", err)
+	}
+
+	p.DB.SetMaxOpenConns(int(p.MaxOpenConns))
+	p.DB.SetMaxIdleConns(int(p.MaxIdleConns))
+
+	err = p.DB.PingContext(ctx)
+	if err != nil {
+		p.DB = nil
+		return p.DataSource, nil, fmt.Errorf("ConnectLazy - unable to ping database: %w", err)
+	}
+
+	tflog.SetField(ctx, "db_driver", p.DataSource)
+	tflog.Info(ctx, "Database connection established.")
+
+	return p.DataSource, p.DB, nil
+}
+
+func connect(dsn string) (ds dataSource, db *sql.DB, err error) {
+	ds, err = parseUrl(dsn)
+	if err != nil {
+		return ds, nil, err
+	}
+
+	db, err = sql.Open(string(ds.driver), ds.url)
+	if err != nil {
+		return ds, nil, fmt.Errorf("unable to open database: %w", err)
+	}
+
+	return
+}
+
+func parseUrl(url string) (dataSource, error) {
+	scheme, err := schemeFromURL(url)
+	if err != nil {
+		return dataSource{}, err
 	}
 
 	switch scheme {
 	case "postgres", "postgresql":
 		// TODO: use consts for these driver names?
-		p.Driver = "pgx"
+		return dataSource{driver: "pgx", url: url}, nil
+
 	case "mysql":
-		p.Driver = "mysql"
-		dsn = strings.TrimPrefix(dsn, "mysql://")
+		return dataSource{driver: "mysql", url: strings.TrimPrefix(url, "mysql://")}, nil
+
 		// TODO: multistatements? see go-migrate's implementation
 		// https://github.com/golang-migrate/migrate/blob/master/database/mysql/mysql.go
-
 		// TODO: also set parseTime=true https://github.com/go-sql-driver/mysql#parsetime
+
 	case "sqlserver":
-		p.Driver = "sqlserver"
+		return dataSource{driver: "sqlserver", url: url}, nil
+
 	default:
-		return fmt.Errorf("unexpected datasource name scheme: %q", scheme)
+		return dataSource{}, fmt.Errorf("unexpected scheme: %q", scheme)
 	}
-
-	p.DB, err = sql.Open(string(p.Driver), dsn)
-	if err != nil {
-		return fmt.Errorf("unable to open database: %w", err)
-	}
-
-	// force this to zero, but let callers override config
-	p.DB.SetMaxIdleConns(0)
-
-	return nil
 }
 
 func schemeFromURL(url string) (string, error) {
@@ -78,7 +165,7 @@ func schemeFromURL(url string) (string, error) {
 	return url[0:i], nil
 }
 
-func (p *provider) ValuesForRow(rows *sql.Rows) (map[string]tftypes.Value, map[string]tftypes.Type, error) {
+func ValuesForRow(driver driverName, rows *sql.Rows) (map[string]tftypes.Value, map[string]tftypes.Type, error) {
 	colTypes, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to retrieve column type: %w", err)
@@ -97,7 +184,7 @@ func (p *provider) ValuesForRow(rows *sql.Rows) (map[string]tftypes.Value, map[s
 			name = fmt.Sprintf("column%d", i)
 		}
 
-		ty, rty, err := p.typeAndValueForColType(colType)
+		ty, rty, err := typeAndValueForColType(driver, colType)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to determine type for %q: %w", name, err)
 		}
@@ -173,11 +260,11 @@ func (p *provider) ValuesForRow(rows *sql.Rows) (map[string]tftypes.Value, map[s
 	return rowValues, rowTypes, nil
 }
 
-func (p *provider) typeAndValueForColType(colType *sql.ColumnType) (tftypes.Type, reflect.Type, error) {
+func typeAndValueForColType(driver driverName, colType *sql.ColumnType) (tftypes.Type, reflect.Type, error) {
 	scanType := colType.ScanType()
 	kind := scanType.Kind()
 
-	switch p.Driver {
+	switch driver {
 	case "sqlserver":
 		switch dbName := colType.DatabaseTypeName(); dbName {
 		case "UNIQUEIDENTIFIER":

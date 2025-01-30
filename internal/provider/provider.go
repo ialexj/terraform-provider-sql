@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -93,13 +94,24 @@ func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Valu
 
 	var err error
 
-	p.Url = config["url"]
-	if p.Url.IsKnown() {
-		_, err = p.GetDataSource()
+	url := config["url"]
+	if url.IsNull() {
+		if env := os.Getenv("SQL_URL"); env != "" {
+			url = tftypes.NewValue(tftypes.String, env)
+		}
+	}
+
+	if url.IsKnown() {
+		var urlValue string
+		url.As(&urlValue)
+
+		_, err = parseUrl(urlValue)
 		if err != nil {
 			return nil, fmt.Errorf("ConfigureProvider - invalid url: %w", err)
 		}
 	}
+
+	p.Url = url
 
 	if v := config["max_open_conns"]; v.IsNull() {
 		p.MaxOpenConns = 0

@@ -212,15 +212,19 @@ func (td *testServer) Start() error {
 			// do not exit here, just log the issue
 		}
 
+		ds, err := parseUrl(td.url)
+		if err != nil {
+			log.Printf("cannot parse URL into a dataSource: %s", err)
+		}
+
 		td.resourceOnceErr = dockerPool.Retry(func() error {
-			p := &provider{}
-			err := p.connect(td.url)
+			db, err := sql.Open(string(ds.driver), ds.url)
 			if err != nil {
 				return err
 			}
-			defer p.DB.Close()
+			defer db.Close()
 
-			err = p.DB.Ping()
+			err = db.Ping()
 			if err != nil {
 				return err
 			}
@@ -232,14 +236,14 @@ func (td *testServer) Start() error {
 		}
 
 		if td.OnReady != nil {
-			p := &provider{}
-			td.resourceOnceErr = p.connect(td.url)
+			var db *sql.DB
+			db, td.resourceOnceErr = sql.Open(string(ds.driver), ds.url)
 			if td.resourceOnceErr != nil {
 				return
 			}
-			defer p.DB.Close()
+			defer db.Close()
 
-			td.resourceOnceErr = td.OnReady(p.DB)
+			td.resourceOnceErr = td.OnReady(db)
 			if td.resourceOnceErr != nil {
 				return
 			}

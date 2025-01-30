@@ -36,9 +36,10 @@ type driverName string
 type provider struct {
 	DB *sql.DB `argmapper:",typeOnly"`
 
-	Driver driverName
+	DataSource dataSource
 
-	Url          tftypes.Value
+	Url tftypes.Value
+
 	MaxOpenConns int64
 	MaxIdleConns int64
 }
@@ -94,7 +95,7 @@ func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Valu
 
 	p.Url = config["url"]
 	if p.Url.IsKnown() {
-		_, err = p.validateUrl()
+		_, err = p.GetDataSource()
 		if err != nil {
 			return nil, fmt.Errorf("ConfigureProvider - invalid url: %w", err)
 		}

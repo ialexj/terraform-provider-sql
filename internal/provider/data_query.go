@@ -11,20 +11,18 @@ import (
 )
 
 type dataQuery struct {
-	db dbQueryer
-	p  *provider
+	db dbConnector
 }
 
 var _ server.DataSource = (*dataQuery)(nil)
 
-func newDataQuery(db dbQueryer, p *provider) (*dataQuery, error) {
+func newDataQuery(db dbConnector) (*dataQuery, error) {
 	if db == nil {
 		return nil, fmt.Errorf("a database is required")
 	}
 
 	return &dataQuery{
 		db: db,
-		p:  p,
 	}, nil
 }
 
@@ -93,12 +91,12 @@ func (d *dataQuery) Read(ctx context.Context, config map[string]tftypes.Value) (
 		return nil, nil, err
 	}
 
-	diag, err := d.p.ConnectLazy(ctx)
-	if diag != nil || err != nil {
-		return nil, diag, err
+	ds, queryer, err := d.db.GetQueryer(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	rows, err := d.p.DB.QueryContext(ctx, query)
+	rows, err := queryer.QueryContext(ctx, query)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -107,7 +105,7 @@ func (d *dataQuery) Read(ctx context.Context, config map[string]tftypes.Value) (
 	var rowType tftypes.Type
 	rowSet := []tftypes.Value{}
 	for rows.Next() {
-		row, ty, err := d.p.ValuesForRow(rows)
+		row, ty, err := ValuesForRow(ds.driver, rows)
 		if err != nil {
 			return nil, []*tfprotov6.Diagnostic{
 				{

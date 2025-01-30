@@ -28,17 +28,17 @@ jobs:
         name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.19'
+          go-version: '1.23'
       -
         name: Import GPG key
         id: import_gpg
-        uses: ialexj/ghaction-import-gpg@v2.1.0
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        uses: crazy-max/ghaction-import-gpg@cb9bde2e2525e640591a934b1fd28eef1dcaf5e5
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3
+        uses: goreleaser/goreleaser-action@d62662642619127097521b87f634fd9c65e2f847
         with:
           version: latest
           args: release --rm-dist

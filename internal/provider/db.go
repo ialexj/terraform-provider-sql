@@ -46,28 +46,11 @@ func (p *provider) HasUrl() bool {
 }
 
 func (p *provider) GetDataSource() (dataSource, error) {
-	url, err := p.getCurrentUrlValue()
-	if err != nil {
-		return dataSource{}, fmt.Errorf("GetDriver - invalid url: %w", err)
+	if !p.Url.IsKnown() {
+		return dataSource{}, fmt.Errorf("url is not yet known")
 	}
 
-	p.DataSource, err = parseUrl(url)
-	return p.DataSource, err
-}
-
-func (p *provider) getCurrentUrlValue() (string, error) {
-	var url string
-	err := p.Url.As(&url)
-	if err != nil {
-		// TODO: diag with path
-		return "", fmt.Errorf("unable to read url: %w", err)
-	}
-
-	if url == "" {
-		return "", fmt.Errorf("url can't be empty")
-	}
-
-	return url, nil
+	return parseUrlValue(p.Url)
 }
 
 func (p *provider) GetQueryer(ctx context.Context) (dataSource, dbQueryer, error) {
@@ -111,21 +94,22 @@ func (p *provider) connectContext(ctx context.Context) (dataSource, *sql.DB, err
 	return p.DataSource, p.DB, nil
 }
 
-func connect(dsn string) (ds dataSource, db *sql.DB, err error) {
-	ds, err = parseUrl(dsn)
+func parseUrlValue(value tftypes.Value) (dataSource, error) {
+	var url string
+	err := value.As(&url)
 	if err != nil {
-		return ds, nil, err
+		// TODO: diag with path
+		return dataSource{}, fmt.Errorf("unable to read url: %w", err)
 	}
 
-	db, err = sql.Open(string(ds.driver), ds.url)
-	if err != nil {
-		return ds, nil, fmt.Errorf("unable to open database: %w", err)
-	}
-
-	return
+	return parseUrl(url)
 }
 
 func parseUrl(url string) (dataSource, error) {
+	if url == "" {
+		return dataSource{}, fmt.Errorf("url can't be empty")
+	}
+
 	scheme, err := schemeFromURL(url)
 	if err != nil {
 		return dataSource{}, err
@@ -150,7 +134,7 @@ func parseUrl(url string) (dataSource, error) {
 		return dataSource{driver: "sqlserver", url: url}, nil
 
 	default:
-		return dataSource{}, fmt.Errorf("unexpected scheme: %q", scheme)
+		return dataSource{}, fmt.Errorf("unsupported driver: %q", scheme)
 	}
 }
 

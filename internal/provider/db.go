@@ -9,7 +9,8 @@ import (
 	"time"
 
 	// database drivers
-	_ "github.com/denisenkom/go-mssqldb"
+
+	_ "github.com/denisenkom/go-mssqldb/azuread"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v4/stdlib"
 
@@ -110,20 +111,6 @@ func (p *provider) connectContext(ctx context.Context) (dataSource, *sql.DB, err
 	return p.DataSource, p.DB, nil
 }
 
-func connect(dsn string) (ds dataSource, db *sql.DB, err error) {
-	ds, err = parseUrl(dsn)
-	if err != nil {
-		return ds, nil, err
-	}
-
-	db, err = sql.Open(string(ds.driver), ds.url)
-	if err != nil {
-		return ds, nil, fmt.Errorf("unable to open database: %w", err)
-	}
-
-	return
-}
-
 func parseUrl(url string) (dataSource, error) {
 	scheme, err := schemeFromURL(url)
 	if err != nil {
@@ -141,6 +128,9 @@ func parseUrl(url string) (dataSource, error) {
 		// TODO: multistatements? see go-migrate's implementation
 		// https://github.com/golang-migrate/migrate/blob/master/database/mysql/mysql.go
 		// TODO: also set parseTime=true https://github.com/go-sql-driver/mysql#parsetime
+
+	case "azuresql":
+		return dataSource{driver: "azuresql", url: strings.Replace(url, "azuresql://", "sqlserver://", 1)}, nil
 
 	case "sqlserver":
 		return dataSource{driver: "sqlserver", url: url}, nil

@@ -111,6 +111,20 @@ func (p *provider) connectContext(ctx context.Context) (dataSource, *sql.DB, err
 	return p.DataSource, p.DB, nil
 }
 
+func connect(dsn string) (ds dataSource, db *sql.DB, err error) {
+	ds, err = parseUrl(dsn)
+	if err != nil {
+		return ds, nil, err
+	}
+
+	db, err = sql.Open(string(ds.driver), ds.url)
+	if err != nil {
+		return ds, nil, fmt.Errorf("unable to open database: %w", err)
+	}
+
+	return
+}
+
 func parseUrl(url string) (dataSource, error) {
 	scheme, err := schemeFromURL(url)
 	if err != nil {

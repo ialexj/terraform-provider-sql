@@ -8,8 +8,6 @@ description: |-
 
 # sql Provider
 
-
-
 ## Example Usage
 
 ```terraform
@@ -17,6 +15,12 @@ description: |-
 provider "sql" {
   alias = "mssql"
   url   = "sqlserver://sa:password@localhost:1433"
+}
+
+# connect to Azure SQL Server
+provider "sql" {
+  alias = "azsql"
+  url   = "azuresql://sa:password@localhost:1433"
 }
 
 # connect to PostgreSQL

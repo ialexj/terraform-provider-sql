@@ -89,9 +89,9 @@ var testServers = []*testServer{
 		ServerType: "sqlserver",
 		StartContainer: func() (*dockertest.Resource, string, error) {
 			password := "TF-8chars"
-			resource, err := dockerPool.Run("mcr.microsoft.com/mssql/server", "2017-latest", []string{
-				"ACCEPT_EULA=y",
-				"SA_PASSWORD=" + password,
+			resource, err := dockerPool.Run("mcr.microsoft.com/mssql/server", "2022-latest", []string{
+				"ACCEPT_EULA=Y",
+				"MSSQL_SA_PASSWORD=" + password,
 			})
 			if err != nil {
 				return nil, "", err
@@ -156,7 +156,7 @@ func runTestMain(m *testing.M) int {
 		log.Fatalf("could not connect to docker: %s", err)
 	}
 
-	dockerPool.MaxWait = 5 * time.Minute
+	dockerPool.MaxWait = 20 * time.Minute
 
 	for _, driver := range testServers {
 		driver := driver
@@ -205,8 +205,8 @@ func (td *testServer) Start() error {
 			return
 		}
 
-		// set a hard expiry on the container for 10 minutes
-		err := td.resource.Expire(10 * 60)
+		// set a hard expiry on the container for 30 minutes
+		err := td.resource.Expire(30 * 60)
 		if err != nil {
 			log.Printf("unable to set hard expiration: %s", err)
 			// do not exit here, just log the issue

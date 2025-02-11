@@ -119,6 +119,7 @@ func (r *resourceMigrateDirectory) plan(ctx context.Context, proposed map[string
 
 	return map[string]tftypes.Value{
 		"id":                  tftypes.NewValue(tftypes.String, "static-id"),
+		"url":                 proposed["url"],
 		"path":                proposed["path"],
 		"single_file_split":   proposed["single_file_split"],
 		"complete_migrations": migration.List(migrations),

@@ -28,6 +28,14 @@ func (d *dataDriver) Schema(context.Context) *tfprotov6.Schema {
 			DescriptionKind: tfprotov6.StringKindMarkdown,
 			Attributes: []*tfprotov6.SchemaAttribute{
 				{
+					Name:            "url",
+					Optional:        true,
+					Computed:        true,
+					Description:     "The database URL to connect to.",
+					DescriptionKind: tfprotov6.StringKindMarkdown,
+					Type:            tftypes.String,
+				},
+				{
 					Name:            "name",
 					Computed:        true,
 					Description:     "The name of the driver, currently this will be one of `pgx`, `mysql`, or `sqlserver`.",
@@ -35,8 +43,7 @@ func (d *dataDriver) Schema(context.Context) *tfprotov6.Schema {
 					Type:            tftypes.String,
 				},
 				{
-					Name:            "url",
-					Optional:        true,
+					Name:            "datasource",
 					Computed:        true,
 					Description:     "The URL that's passed to the underlying connection.",
 					DescriptionKind: tfprotov6.StringKindMarkdown,
@@ -69,8 +76,9 @@ func (d *dataDriver) Read(ctx context.Context, config map[string]tftypes.Value) 
 	}
 
 	return map[string]tftypes.Value{
-		"name": name,
-		"url":  url,
+		"url":        config["url"],
+		"name":       name,
+		"datasource": url,
 
 		// just a placeholder, see deprecatedIDAttribute
 		"id": tftypes.NewValue(

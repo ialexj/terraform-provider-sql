@@ -148,6 +148,7 @@ func (d *dataQuery) Read(ctx context.Context, config map[string]tftypes.Value) (
 	return map[string]tftypes.Value{
 		"id":    config["query"],
 		"query": config["query"],
+		"url":   config["url"],
 		// "parameters": config["parameters"],
 		"result": tftypes.NewValue(
 			tftypes.List{

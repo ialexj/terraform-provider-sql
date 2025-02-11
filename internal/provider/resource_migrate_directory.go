@@ -36,6 +36,16 @@ func (r *resourceMigrateDirectory) Schema(ctx context.Context) *tfprotov6.Schema
 		Block: &tfprotov6.SchemaBlock{
 			Attributes: []*tfprotov6.SchemaAttribute{
 				{
+					Name:     "url",
+					Optional: true,
+					Computed: true,
+					Description: "Database connection strings are specified via URLs. The URL format is driver dependent " +
+						"but generally has the form: `dbdriver://username:password@host:port/dbname?param1=true&param2=false`. " +
+						"You can optionally set the `SQL_URL` environment variable instead.",
+					DescriptionKind: tfprotov6.StringKindMarkdown,
+					Type:            tftypes.String,
+				},
+				{
 					Name:     "path",
 					Required: true,
 					Description: "The path of the SQL migration files. For a path relative to the current module, " +

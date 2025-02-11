@@ -36,6 +36,7 @@ func (d *dataDriver) Schema(context.Context) *tfprotov6.Schema {
 				},
 				{
 					Name:            "url",
+					Optional:        true,
 					Computed:        true,
 					Description:     "The URL that's passed to the underlying connection.",
 					DescriptionKind: tfprotov6.StringKindMarkdown,
@@ -59,7 +60,7 @@ func (d *dataDriver) Read(ctx context.Context, config map[string]tftypes.Value) 
 		name = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
 		url = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
 	} else {
-		ds, err := d.db.GetDataSource()
+		ds, err := d.db.GetDataSource(config["url"])
 		if err != nil {
 			return nil, nil, err
 		}

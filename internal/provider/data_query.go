@@ -46,6 +46,16 @@ func (d *dataQuery) Schema(context.Context) *tfprotov6.Schema {
 			DescriptionKind: tfprotov6.StringKindMarkdown,
 			Attributes: []*tfprotov6.SchemaAttribute{
 				{
+					Name:     "url",
+					Optional: true,
+					Computed: true,
+					Description: "Database connection strings are specified via URLs. The URL format is driver dependent " +
+						"but generally has the form: `dbdriver://username:password@host:port/dbname?param1=true&param2=false`. " +
+						"You can optionally set the `SQL_URL` environment variable instead.",
+					DescriptionKind: tfprotov6.StringKindMarkdown,
+					Type:            tftypes.String,
+				},
+				{
 					Name:            "query",
 					Required:        true,
 					Description:     "The query to execute. The types in this query will be reflected in the typing of the `result` attribute.",
@@ -86,12 +96,13 @@ func (d *dataQuery) Read(ctx context.Context, config map[string]tftypes.Value) (
 	var (
 		query string
 	)
+
 	err := config["query"].As(&query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ds, queryer, err := d.db.GetQueryer(ctx)
+	ds, queryer, err := d.db.GetQueryer(ctx, config["url"])
 	if err != nil {
 		return nil, nil, err
 	}

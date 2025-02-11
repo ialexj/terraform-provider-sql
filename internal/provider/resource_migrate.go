@@ -35,6 +35,20 @@ var (
 func (r *resourceMigrate) Schema(ctx context.Context) *tfprotov6.Schema {
 	return &tfprotov6.Schema{
 		Block: &tfprotov6.SchemaBlock{
+			Attributes: []*tfprotov6.SchemaAttribute{
+				{
+					Name:     "url",
+					Optional: true,
+					Computed: true,
+					Description: "Database connection strings are specified via URLs. The URL format is driver dependent " +
+						"but generally has the form: `dbdriver://username:password@host:port/dbname?param1=true&param2=false`. " +
+						"You can optionally set the `SQL_URL` environment variable instead.",
+					DescriptionKind: tfprotov6.StringKindMarkdown,
+					Type:            tftypes.String,
+				},
+				completeMigrationsAttribute(),
+				deprecatedIDAttribute(),
+			},
 			BlockTypes: []*tfprotov6.SchemaNestedBlock{
 				{
 					TypeName: "migration",
@@ -65,10 +79,6 @@ func (r *resourceMigrate) Schema(ctx context.Context) *tfprotov6.Schema {
 						},
 					},
 				},
-			},
-			Attributes: []*tfprotov6.SchemaAttribute{
-				completeMigrationsAttribute(),
-				deprecatedIDAttribute(),
 			},
 		},
 	}
@@ -139,6 +149,7 @@ func (r *resourceMigrate) PlanUpdate(ctx context.Context, proposed map[string]tf
 func (r *resourceMigrate) plan(ctx context.Context, proposed map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
 	return map[string]tftypes.Value{
 		"id":                  tftypes.NewValue(tftypes.String, "static-id"),
+		"url":                 proposed["url"],
 		"migration":           proposed["migration"],
 		"complete_migrations": proposed["migration"],
 	}, nil, nil

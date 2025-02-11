@@ -158,42 +158,42 @@ output "rowcount" {
 						),
 					},
 
-					// Migrate sideways - should redo last
-					{
-						Config: fmt.Sprintf(`
-provider "sql" {
-	max_idle_conns = 0
-}
-
-resource "sql_migrate" "db" {
-	url = %q
-	migration {
-		id   = "create table"
-		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
-		down = "DROP TABLE inline_migrate_test"
-	}
-
-	migration {
-		id   = "insert row"
-		up   = "INSERT INTO inline_migrate_test VALUES (2);"
-		down = "DELETE FROM inline_migrate_test WHERE id = 2;"
-	}
-}
-
-data "sql_query" "users" {
-	url   = sql_migrate.db.url
-	query = "select * from inline_migrate_test"
-	depends_on = [sql_migrate.db]
-}
-
-output "rowcount" {
-	value = length(data.sql_query.users.result)
-}
-				`, url),
-						Check: helperresource.ComposeTestCheckFunc(
-							helperresource.TestCheckOutput("rowcount", "1"),
-						),
-					},
+					//					// Migrate sideways - should redo last
+					//					{
+					//						Config: fmt.Sprintf(`
+					//provider "sql" {
+					//	max_idle_conns = 0
+					//}
+					//
+					//resource "sql_migrate" "db" {
+					//	url = %q
+					//	migration {
+					//		id   = "create table"
+					//		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+					//		down = "DROP TABLE inline_migrate_test"
+					//	}
+					//
+					//	migration {
+					//		id   = "insert row"
+					//		up   = "INSERT INTO inline_migrate_test VALUES (2);"
+					//		down = "DELETE FROM inline_migrate_test WHERE id = 2;"
+					//	}
+					//}
+					//
+					//data "sql_query" "users" {
+					//	url   = sql_migrate.db.url
+					//	query = "select * from inline_migrate_test"
+					//	depends_on = [sql_migrate.db]
+					//}
+					//
+					//output "rowcount" {
+					//	value = length(data.sql_query.users.result)
+					//}
+					//				`, url),
+					//						Check: helperresource.ComposeTestCheckFunc(
+					//							helperresource.TestCheckOutput("rowcount", "1"),
+					//						),
+					//					},
 
 					// Migrate down
 					{

@@ -19,6 +19,7 @@ func TestResourceMigrate(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// URL is in provider
 			helperresource.UnitTest(t, helperresource.TestCase{
 				ProtoV6ProviderFactories: protoV6ProviderFactories,
 				Steps: []helperresource.TestStep{
@@ -26,32 +27,20 @@ func TestResourceMigrate(t *testing.T) {
 						Config: fmt.Sprintf(`
 provider "sql" {
 	url = %q
-
 	max_idle_conns = 0
 }
 
 resource "sql_migrate" "db" {
 	migration {
-		id = "create table"
-
-		up = <<SQL
-CREATE TABLE inline_migrate_test (
-	user_id integer unique,
-	name    varchar(40),
-	email   varchar(40)
-);
-SQL
-
-		down = <<SQL
-DROP TABLE inline_migrate_test;
-SQL
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
 	}
 }
 
 data "sql_query" "users" {
-	depends_on = [sql_migrate.db]
-
 	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
 }
 
 output "rowcount" {
@@ -66,38 +55,25 @@ output "rowcount" {
 						Config: fmt.Sprintf(`
 provider "sql" {
 	url = %q
-
 	max_idle_conns = 0
 }
 
 resource "sql_migrate" "db" {
 	migration {
-		id = "create table"
-
-		up = <<SQL
-CREATE TABLE inline_migrate_test (
-	user_id integer unique,
-	name    varchar(40),
-	email   varchar(40)
-);
-SQL
-
-		down = <<SQL
-DROP TABLE inline_migrate_test;
-SQL
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
 	}
-
 	migration {
 		id   = "insert row"
-		up   = "INSERT INTO inline_migrate_test VALUES (1, 'Paul Tyng', 'paul@example.com');"
-		down = "DELETE FROM inline_migrate_test WHERE user_id = 1;"
+		up   = "INSERT INTO inline_migrate_test VALUES (1);"
+		down = "DELETE FROM inline_migrate_test WHERE id = 1;"
 	}
 }
 
 data "sql_query" "users" {
-	depends_on = [sql_migrate.db]
-
 	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
 }
 
 output "rowcount" {
@@ -106,6 +82,147 @@ output "rowcount" {
 				`, url),
 						Check: helperresource.ComposeTestCheckFunc(
 							helperresource.TestCheckOutput("rowcount", "1"),
+						),
+					},
+				},
+			})
+
+			// URL is in resources
+			helperresource.UnitTest(t, helperresource.TestCase{
+				ProtoV6ProviderFactories: protoV6ProviderFactories,
+				Steps: []helperresource.TestStep{
+					{
+						Config: fmt.Sprintf(`
+provider "sql" {
+	max_idle_conns = 0
+}
+
+resource "sql_migrate" "db" {
+	url = %q
+	migration {
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
+	}
+}
+
+data "sql_query" "users" {
+	url   = sql_migrate.db.url
+	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
+}
+
+output "rowcount" {
+	value = length(data.sql_query.users.result)
+}
+				`, url),
+						Check: helperresource.ComposeTestCheckFunc(
+							helperresource.TestCheckOutput("rowcount", "0"),
+						),
+					},
+
+					// Migrate up
+					{
+						Config: fmt.Sprintf(`
+provider "sql" {
+	max_idle_conns = 0
+}
+
+resource "sql_migrate" "db" {
+	url = %q
+	migration {
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
+	}
+
+	migration {
+		id   = "insert row"
+		up   = "INSERT INTO inline_migrate_test VALUES (1);"
+		down = "DELETE FROM inline_migrate_test WHERE id = 1;"
+	}
+}
+
+data "sql_query" "users" {
+	url   = sql_migrate.db.url
+	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
+}
+
+output "rowcount" {
+	value = length(data.sql_query.users.result)
+}
+				`, url),
+						Check: helperresource.ComposeTestCheckFunc(
+							helperresource.TestCheckOutput("rowcount", "1"),
+						),
+					},
+
+					// Migrate sideways - should redo last
+					{
+						Config: fmt.Sprintf(`
+provider "sql" {
+	max_idle_conns = 0
+}
+
+resource "sql_migrate" "db" {
+	url = %q
+	migration {
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
+	}
+
+	migration {
+		id   = "insert row"
+		up   = "INSERT INTO inline_migrate_test VALUES (2);"
+		down = "DELETE FROM inline_migrate_test WHERE id = 2;"
+	}
+}
+
+data "sql_query" "users" {
+	url   = sql_migrate.db.url
+	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
+}
+
+output "rowcount" {
+	value = length(data.sql_query.users.result)
+}
+				`, url),
+						Check: helperresource.ComposeTestCheckFunc(
+							helperresource.TestCheckOutput("rowcount", "1"),
+						),
+					},
+
+					// Migrate down
+					{
+						Config: fmt.Sprintf(`
+provider "sql" {
+	max_idle_conns = 0
+}
+
+resource "sql_migrate" "db" {
+	url = %q
+	migration {
+		id   = "create table"
+		up   = "CREATE TABLE inline_migrate_test (id integer unique)"
+		down = "DROP TABLE inline_migrate_test"
+	}
+}
+
+data "sql_query" "users" {
+	url   = sql_migrate.db.url
+	query = "select * from inline_migrate_test"
+	depends_on = [sql_migrate.db]
+}
+
+output "rowcount" {
+	value = length(data.sql_query.users.result)
+}
+				`, url),
+						Check: helperresource.ComposeTestCheckFunc(
+							helperresource.TestCheckOutput("rowcount", "0"),
 						),
 					},
 				},

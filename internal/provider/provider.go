@@ -91,7 +91,7 @@ func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Valu
 		}
 	}
 
-	if url.IsKnown() {
+	if url.IsKnown() && !url.IsNull() {
 		var urlValue string
 		url.As(&urlValue)
 

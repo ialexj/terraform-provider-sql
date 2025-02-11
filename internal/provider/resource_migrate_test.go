@@ -158,7 +158,7 @@ output "rowcount" {
 }
 				`, url),
 						Check: helperresource.ComposeTestCheckFunc(
-							helperresource.TestCheckOutput("result", "4"),
+							helperresource.TestCheckOutput("rowcount", "1"),
 						),
 					},
 

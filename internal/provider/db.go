@@ -31,9 +31,9 @@ type dbExecer interface {
 
 type dbConnector interface {
 	HasUrl() bool
-	GetDataSource() (dataSource, error)
-	GetQueryer(ctx context.Context) (dataSource, dbQueryer, error)
-	GetExecer(ctx context.Context) (dataSource, dbExecer, error)
+	GetDataSource(url tftypes.Value) (dataSource, error)
+	GetQueryer(ctx context.Context, url tftypes.Value) (dataSource, dbQueryer, error)
+	GetExecer(ctx context.Context, url tftypes.Value) (dataSource, dbExecer, error)
 }
 
 type dataSource struct {
@@ -45,56 +45,56 @@ func (p *provider) HasUrl() bool {
 	return p.Url.IsKnown()
 }
 
-func (p *provider) GetDataSource() (dataSource, error) {
-	if !p.Url.IsKnown() {
-		return dataSource{}, fmt.Errorf("url is not yet known")
+func (p *provider) GetDataSource(url tftypes.Value) (dataSource, error) {
+	if url.IsNull() {
+		url = p.Url
 	}
 
-	return parseUrlValue(p.Url)
+	return parseUrlValue(url)
 }
 
-func (p *provider) GetQueryer(ctx context.Context) (dataSource, dbQueryer, error) {
-	return p.connectContext(ctx)
+func (p *provider) GetQueryer(ctx context.Context, url tftypes.Value) (dataSource, dbQueryer, error) {
+	return p.connect(ctx, url)
 }
 
-func (p *provider) GetExecer(ctx context.Context) (dataSource, dbExecer, error) {
-	return p.connectContext(ctx)
+func (p *provider) GetExecer(ctx context.Context, url tftypes.Value) (dataSource, dbExecer, error) {
+	return p.connect(ctx, url)
 }
 
-func (p *provider) connectContext(ctx context.Context) (dataSource, *sql.DB, error) {
+func (p *provider) connect(ctx context.Context, url tftypes.Value) (dataSource, *sql.DB, error) {
 	var err error
+	var ds dataSource
+	var db *sql.DB
 
-	if p.DB != nil {
-		tflog.Debug(ctx, "Database connection is already open.")
-		return p.DataSource, p.DB, nil
-	}
-
-	p.DataSource, err = p.GetDataSource()
+	ds, err = p.GetDataSource(url)
 	if err != nil {
-		return p.DataSource, nil, err
+		return ds, nil, err
 	}
 
-	p.DB, err = sql.Open(string(p.DataSource.driver), p.DataSource.url)
+	db, err = sql.Open(string(ds.driver), ds.url)
 	if err != nil {
-		return p.DataSource, nil, fmt.Errorf("unable to open database: %w", err)
+		return ds, nil, fmt.Errorf("unable to open database: %w", err)
 	}
 
-	p.DB.SetMaxOpenConns(int(p.MaxOpenConns))
-	p.DB.SetMaxIdleConns(int(p.MaxIdleConns))
+	db.SetMaxOpenConns(int(p.MaxOpenConns))
+	db.SetMaxIdleConns(int(p.MaxIdleConns))
 
-	err = p.DB.PingContext(ctx)
+	err = db.PingContext(ctx)
 	if err != nil {
-		p.DB = nil
-		return p.DataSource, nil, fmt.Errorf("ConnectLazy - unable to ping database: %w", err)
+		return ds, nil, fmt.Errorf("connectContext - unable to ping database: %w", err)
 	}
 
-	tflog.SetField(ctx, "db_driver", p.DataSource)
+	tflog.SetField(ctx, "db_driver", ds)
 	tflog.Info(ctx, "Database connection established.")
 
-	return p.DataSource, p.DB, nil
+	return ds, db, nil
 }
 
 func parseUrlValue(value tftypes.Value) (dataSource, error) {
+	if !value.IsKnown() {
+		return dataSource{}, fmt.Errorf("url is not yet known")
+	}
+
 	var url string
 	err := value.As(&url)
 	if err != nil {

@@ -10,9 +10,9 @@ import (
 
 	// database drivers
 
-	_ "github.com/denisenkom/go-mssqldb/azuread"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/microsoft/go-mssqldb/azuread"
 
 	// TODO: sqlite? need to use a pure go driver, i think this one is...
 	// _ "modernc.org/sqlite"

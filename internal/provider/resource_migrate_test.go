@@ -8,7 +8,7 @@ import (
 	helper "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func testStep(url string, urlInProvider bool, migrations []string, expectedRows string) helper.TestStep {
+func testStep(url string, urlInProvider bool, migrations []string, expectedRows string, expectedValue string) helper.TestStep {
 	urlParameter := fmt.Sprintf(`url = "%s"`, url)
 
 	var providerUrl, resourceUrl string
@@ -30,16 +30,20 @@ func testStep(url string, urlInProvider bool, migrations []string, expectedRows 
 			}
 			data "sql_query" "users" {
 				%s
-				query = "select * from test"
+				query = "SELECT id FROM test"
 				depends_on = [sql_migrate.db]
 			}
 			output "rowcount" {
 				value = length(data.sql_query.users.result)
 			}
+			output "value" {
+				value = try(data.sql_query.users.result[0].id, "")
+			}
 			`, providerUrl, resourceUrl, strings.Join(migrations, "\n"), resourceUrl),
 
 		Check: helper.ComposeTestCheckFunc(
 			helper.TestCheckOutput("rowcount", expectedRows),
+			helper.TestCheckOutput("value", expectedValue),
 		),
 	}
 }
@@ -51,24 +55,34 @@ func testSet(url string, urlInProvider bool) []helper.TestStep {
 		down = "DROP TABLE test"
 	}`
 
-	migration_insert_row := `migration {
+	migration_insert_row_1 := `migration {
 		id   = "insert row"
 		up   = "INSERT INTO test VALUES (1)"
 		down = "DELETE FROM test WHERE id = 1"
 	}`
 
+	migration_insert_row_2 := `migration {
+		id   = "insert row"
+		up   = "INSERT INTO test VALUES (2)"
+		down = "DELETE FROM test WHERE id = 2"
+	}`
+
 	return []helper.TestStep{
 		testStep(url, urlInProvider, []string{
 			migration_create_table, // create table
-		}, "0"),
+		}, "0", ""),
 		testStep(url, urlInProvider, []string{
 			migration_create_table,
-			migration_insert_row, // add a row
-		}, "1"),
+			migration_insert_row_1, // add a row
+		}, "1", "1"),
+		testStep(url, urlInProvider, []string{
+			migration_create_table,
+			migration_insert_row_2, // delete row 1, add row 2
+		}, "1", "2"),
 		testStep(url, urlInProvider, []string{
 			migration_create_table,
 			// delete row
-		}, "0"),
+		}, "0", ""),
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 func testStep(url string, urlInProvider bool, migrations []string, expectedRows string) helper.TestStep {
-	urlParameter := fmt.Sprintf("url = %q", url)
+	urlParameter := fmt.Sprintf(`url = "%s"`, url)
 
 	var providerUrl, resourceUrl string
 	if urlInProvider {

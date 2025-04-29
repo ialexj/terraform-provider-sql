@@ -55,17 +55,13 @@ func testSet(url string, urlInProvider bool) []helper.TestStep {
 		down = "DROP TABLE test"
 	}`
 
-	migration_insert_row_1 := `migration {
-		id   = "insert row"
-		up   = "INSERT INTO test VALUES (1)"
-		down = "DELETE FROM test WHERE id = 1"
-	}`
-
-	migration_insert_row_2 := `migration {
-		id   = "insert row"
-		up   = "INSERT INTO test VALUES (2)"
-		down = "DELETE FROM test WHERE id = 2"
-	}`
+	migration_insert_row := func(i int) string {
+		return fmt.Sprintf(`migration {
+			id   = "insert row %d"
+			up   = "INSERT INTO test VALUES (%d)"
+			down = "DELETE FROM test WHERE id = %d"
+		}`, i, i, i)
+	}
 
 	return []helper.TestStep{
 		testStep(url, urlInProvider, []string{
@@ -73,11 +69,12 @@ func testSet(url string, urlInProvider bool) []helper.TestStep {
 		}, "0", ""),
 		testStep(url, urlInProvider, []string{
 			migration_create_table,
-			migration_insert_row_1, // add a row
+			migration_insert_row(1), // add a row
 		}, "1", "1"),
+		// This actually fails
 		testStep(url, urlInProvider, []string{
 			migration_create_table,
-			migration_insert_row_2, // delete row 1, add row 2
+			migration_insert_row(2), // delete row 1, add row 2
 		}, "1", "2"),
 		testStep(url, urlInProvider, []string{
 			migration_create_table,

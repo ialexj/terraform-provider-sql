@@ -22,19 +22,16 @@ func testStep(url string, urlInProvider bool, migrations []string, expectedRows 
 		Config: fmt.Sprintf(
 			`provider "sql" {
 				max_idle_conns = 0
-				%q
+				%s
 			}
-			
 			resource "sql_migrate" "db" {
-				%q
-				%q
+				%s
+				%s
 			}
-			
 			data "sql_query" "users" {
 				query = "select * from inline_migrate_test"
 				depends_on = [sql_migrate.db]
 			}
-			
 			output "rowcount" {
 				value = length(data.sql_query.users.result)
 			}

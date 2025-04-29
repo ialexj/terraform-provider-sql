@@ -11,7 +11,7 @@ terraform {
   required_providers {
     sql = {
       source = "ialexj/sql"
-      version = "1.0.1"
+      version = "~> 1.0"
     }
   }
 }
@@ -45,7 +45,7 @@ data "sql_query" "users" {
   # run this query after the migration
   depends_on = [sql_migrate.db]
 
-  query = "select * from users"
+  query = "SELECT * FROM users"
 }
 
 output "rowcount" {

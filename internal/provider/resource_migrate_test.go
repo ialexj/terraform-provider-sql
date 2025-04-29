@@ -29,13 +29,14 @@ func testStep(url string, urlInProvider bool, migrations []string, expectedRows 
 				%s
 			}
 			data "sql_query" "users" {
+				%s
 				query = "select * from inline_migrate_test"
 				depends_on = [sql_migrate.db]
 			}
 			output "rowcount" {
 				value = length(data.sql_query.users.result)
 			}
-			`, providerUrl, resourceUrl, strings.Join(migrations, "\n")),
+			`, providerUrl, resourceUrl, strings.Join(migrations, "\n"), resourceUrl),
 
 		Check: helper.ComposeTestCheckFunc(
 			helper.TestCheckOutput("rowcount", expectedRows),

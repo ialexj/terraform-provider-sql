@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/big"
 	"os"
@@ -35,10 +34,6 @@ func New(version string) func() tfprotov6.ProviderServer {
 type driverName string
 
 type provider struct {
-	DB *sql.DB `argmapper:",typeOnly"`
-
-	DataSource dataSource
-
 	Url tftypes.Value
 
 	MaxOpenConns int64
@@ -87,11 +82,6 @@ func (p *provider) Validate(ctx context.Context, config map[string]tftypes.Value
 }
 
 func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Value) ([]*tfprotov6.Diagnostic, error) {
-	if p.DB != nil {
-		// if reconfiguring, close existing connection
-		_ = p.DB.Close()
-	}
-
 	var err error
 
 	url := config["url"]
@@ -101,7 +91,7 @@ func (p *provider) Configure(ctx context.Context, config map[string]tftypes.Valu
 		}
 	}
 
-	if url.IsKnown() {
+	if url.IsKnown() && !url.IsNull() {
 		var urlValue string
 		url.As(&urlValue)
 

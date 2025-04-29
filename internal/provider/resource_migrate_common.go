@@ -38,7 +38,7 @@ func (r *resourceMigrateCommon) Read(ctx context.Context, current map[string]tft
 }
 
 func (r *resourceMigrateCommon) Create(ctx context.Context, planned map[string]tftypes.Value, config map[string]tftypes.Value, prior map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
-	_, execer, err := r.db.GetExecer(ctx)
+	_, execer, err := r.db.GetExecer(ctx, config["url"])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -57,7 +57,7 @@ func (r *resourceMigrateCommon) Create(ctx context.Context, planned map[string]t
 }
 
 func (r *resourceMigrateCommon) Update(ctx context.Context, planned map[string]tftypes.Value, config map[string]tftypes.Value, prior map[string]tftypes.Value) (map[string]tftypes.Value, []*tfprotov6.Diagnostic, error) {
-	_, execer, err := r.db.GetExecer(ctx)
+	_, execer, err := r.db.GetExecer(ctx, config["url"])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,7 +81,7 @@ func (r *resourceMigrateCommon) Update(ctx context.Context, planned map[string]t
 }
 
 func (r *resourceMigrateCommon) Destroy(ctx context.Context, prior map[string]tftypes.Value) ([]*tfprotov6.Diagnostic, error) {
-	_, execer, err := r.db.GetExecer(ctx)
+	_, execer, err := r.db.GetExecer(ctx, prior["url"])
 	if err != nil {
 		return nil, err
 	}

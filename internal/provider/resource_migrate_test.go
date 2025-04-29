@@ -2,10 +2,86 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
-	helperresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	helper "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
+
+func testStep(url string, urlInProvider bool, migrations []string, expectedRows string, expectedValue string) helper.TestStep {
+	urlParameter := fmt.Sprintf(`url = "%s"`, url)
+
+	var providerUrl, resourceUrl string
+	if urlInProvider {
+		providerUrl = urlParameter
+	} else {
+		resourceUrl = urlParameter
+	}
+
+	return helper.TestStep{
+		Config: fmt.Sprintf(
+			`provider "sql" {
+				max_idle_conns = 0
+				%s
+			}
+			resource "sql_migrate" "db" {
+				%s
+				%s
+			}
+			data "sql_query" "users" {
+				%s
+				query = "SELECT id FROM test"
+				depends_on = [sql_migrate.db]
+			}
+			output "rowcount" {
+				value = length(data.sql_query.users.result)
+			}
+			output "value" {
+				value = try(data.sql_query.users.result[0].id, "")
+			}
+			`, providerUrl, resourceUrl, strings.Join(migrations, "\n"), resourceUrl),
+
+		Check: helper.ComposeTestCheckFunc(
+			helper.TestCheckOutput("rowcount", expectedRows),
+			helper.TestCheckOutput("value", expectedValue),
+		),
+	}
+}
+
+func testSet(url string, urlInProvider bool) []helper.TestStep {
+	migration_create_table := `migration {
+		id   = "create table"
+		up   = "CREATE TABLE test (id integer unique)"
+		down = "DROP TABLE test"
+	}`
+
+	migration_insert_row := func(i int) string {
+		return fmt.Sprintf(`migration {
+			id   = "insert row %d"
+			up   = "INSERT INTO test VALUES (%d)"
+			down = "DELETE FROM test WHERE id = %d"
+		}`, i, i, i)
+	}
+
+	return []helper.TestStep{
+		testStep(url, urlInProvider, []string{
+			migration_create_table, // create table
+		}, "0", ""),
+		testStep(url, urlInProvider, []string{
+			migration_create_table,
+			migration_insert_row(1), // add a row
+		}, "1", "1"),
+		// This actually fails
+		testStep(url, urlInProvider, []string{
+			migration_create_table,
+			migration_insert_row(2), // delete row 1, add row 2
+		}, "1", "2"),
+		testStep(url, urlInProvider, []string{
+			migration_create_table,
+			// delete row
+		}, "0", ""),
+	}
+}
 
 func TestResourceMigrate(t *testing.T) {
 	if testing.Short() {
@@ -19,96 +95,12 @@ func TestResourceMigrate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			helperresource.UnitTest(t, helperresource.TestCase{
+			helper.UnitTest(t, helper.TestCase{
 				ProtoV6ProviderFactories: protoV6ProviderFactories,
-				Steps: []helperresource.TestStep{
-					{
-						Config: fmt.Sprintf(`
-provider "sql" {
-	url = %q
-
-	max_idle_conns = 0
-}
-
-resource "sql_migrate" "db" {
-	migration {
-		id = "create table"
-
-		up = <<SQL
-CREATE TABLE inline_migrate_test (
-	user_id integer unique,
-	name    varchar(40),
-	email   varchar(40)
-);
-SQL
-
-		down = <<SQL
-DROP TABLE inline_migrate_test;
-SQL
-	}
-}
-
-data "sql_query" "users" {
-	depends_on = [sql_migrate.db]
-
-	query = "select * from inline_migrate_test"
-}
-
-output "rowcount" {
-	value = length(data.sql_query.users.result)
-}
-				`, url),
-						Check: helperresource.ComposeTestCheckFunc(
-							helperresource.TestCheckOutput("rowcount", "0"),
-						),
-					},
-					{
-						Config: fmt.Sprintf(`
-provider "sql" {
-	url = %q
-
-	max_idle_conns = 0
-}
-
-resource "sql_migrate" "db" {
-	migration {
-		id = "create table"
-
-		up = <<SQL
-CREATE TABLE inline_migrate_test (
-	user_id integer unique,
-	name    varchar(40),
-	email   varchar(40)
-);
-SQL
-
-		down = <<SQL
-DROP TABLE inline_migrate_test;
-SQL
-	}
-
-	migration {
-		id   = "insert row"
-		up   = "INSERT INTO inline_migrate_test VALUES (1, 'Paul Tyng', 'paul@example.com');"
-		down = "DELETE FROM inline_migrate_test WHERE user_id = 1;"
-	}
-}
-
-data "sql_query" "users" {
-	depends_on = [sql_migrate.db]
-
-	query = "select * from inline_migrate_test"
-}
-
-output "rowcount" {
-	value = length(data.sql_query.users.result)
-}
-				`, url),
-						Check: helperresource.ComposeTestCheckFunc(
-							helperresource.TestCheckOutput("rowcount", "1"),
-						),
-					},
-				},
+				Steps: append(
+					testSet(url, true),     // test with URL in provider
+					testSet(url, false)..., // test with URL in resource
+				),
 			})
 		})
 	}

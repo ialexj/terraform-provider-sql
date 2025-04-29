@@ -48,8 +48,8 @@ data "sql_query" "users" {
   query = "SELECT * FROM users"
 }
 
-output "rowcount" {
-  value = length(data.sql_query.users.result)
+output "name" {
+  value = data.sql_query.users[0].name
 }
 ```
 
@@ -57,6 +57,7 @@ output "rowcount" {
 
 This is a fork of the [sql provider by paultyng](https://github.com/paultyng/terraform-provider-sql). The original provider hasn't been updated in a few years, and has several issues that have been fixed in this fork:
 
+- URL can be set either on the provider, or on each resource.
 - Connection is deferred until apply-time. This makes it possible to use the provider with a yet-unknown URL, such as one for a server that will be deployed in the same apply.
 - Support for Azure Auth for SQL Server. This is achieved by swapping in [Microsoft's SQL Server driver](https://github.com/microsoft/go-mssqldb), with `azuread` support.
 
@@ -65,7 +66,6 @@ This is a fork of the [sql provider by paultyng](https://github.com/paultyng/ter
 There are a few known issues that will be addressed in time.
 
 - When using a single resource to specify many migrations, if one migration in the set succeeds, but the next one fails, the first one's success will not get recorded in the state. On the next apply, all the migrations will be re-run. This can be avoided if using only one migration on each resource, and using `depends_on` to ensure ordering.
-- The requirement to specify the URL at the provider level is limiting. It should be possible to specify it at the resource level instead.
 - This provider uses the legacy [terraform-plugin-go](https://github.com/hashicorp/terraform-plugin-go) SDK.
 
 ## Azure Auth
@@ -79,5 +79,3 @@ Credentials can be passed either via the URL, or via specific [environment varia
 For passwordless login, either `ActiveDirectoryManagedIdentity` should be used to pick up on the current Managed Identity, or `ActiveDirectoryAzCli` to reuse the currently authenticated `az` CLI session.
 
 It's worth noting that when using `ActiveDirectoryDefault`, Managed Identity will take precedence over Azure CLI, which could be meaningful in the context of a private workflow runner, which itself has a managed identity, but uses Azure CLI to authenticate the workflow.
-
-

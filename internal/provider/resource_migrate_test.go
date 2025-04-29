@@ -30,7 +30,7 @@ func testStep(url string, urlInProvider bool, migrations []string, expectedRows 
 			}
 			data "sql_query" "users" {
 				%s
-				query = "select * from inline_migrate_test"
+				query = "select * from test"
 				depends_on = [sql_migrate.db]
 			}
 			output "rowcount" {
